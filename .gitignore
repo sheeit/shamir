@@ -53,3 +53,6 @@ Makefile
 # Build directory
 
 /build
+
+# Auxiliary build files
+/build-aux
