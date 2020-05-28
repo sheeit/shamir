@@ -1,5 +1,6 @@
 /* My includes */
 #include "shamir_key.h"
+#include "getrandom.h"
 
 /* Standard C includes */
 #include <assert.h>  /* for assert() */
@@ -80,54 +81,9 @@ int skey_generate(shamir_key **keys,
 /* Initialize and seed the random state variable (randstate) */
 void skey_randinit(void)
 {
+	char *number = getrandom_str(128);
 	const size_t rand_bits = 64;
-	const size_t bufsize = CEIL_DIV(rand_bits, CHAR_BIT);
-	char *buf = malloc(bufsize);
-	char *number = malloc(rand_bits * 2 + 1);
 	mpz_t seed;
-	int urandom_fd;
-	ssize_t bytes_read;
-	size_t i;
-	int flags = O_RDONLY;
-
-	assert(buf != NULL);
-
-#ifdef O_NOCTTY
-	flags |= O_NOCTTY;
-#endif
-#ifdef O_NOFOLLOW
-	flags |= O_NOFOLLOW;
-#endif
-
-	urandom_fd = open(DEV_URANDOM, flags);
-	if (urandom_fd == -1) {
-		perror("Failed to open " DEV_URANDOM);
-		free(buf);
-		abort();
-	}
-
-	bytes_read = read(urandom_fd, buf, bufsize);
-	if (bytes_read == -1) {
-		perror("read");
-		free(buf);
-		if (close(urandom_fd) == -1)
-			perror("Failed to close " DEV_URANDOM);
-		abort();
-	}
-	if (close(urandom_fd) == -1)
-		perror("Failed to close " DEV_URANDOM);
-
-	assert(bytes_read == bufsize);
-
-	/* We have an array of size bufsize characters
-	 * And we need to convert it to a string representing that number */
-	for (i = 0; i < bufsize; ++i) {
-		unsigned char c = buf[i];
-		number[2 * i    ] = HEX_DIGIT((c & 0x00f0) >> 4);
-		number[2 * i + 1] = HEX_DIGIT(c & 0x000f);
-	}
-	free(buf);
-	number[2 * i] = '\0';
 
 	if (mpz_init_set_str(seed, number, 16) == -1) {
 		/* TODO: handle error */
@@ -144,6 +100,7 @@ void skey_randinit(void)
 	/* Using time() to get a random numbe is not very good practice. */
 	gmp_randseed(randstate, seed);
 
+	free(number);
 	mpz_clear(seed);
 }
 
