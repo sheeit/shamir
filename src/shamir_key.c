@@ -29,9 +29,9 @@
 	((x) < 10U) \
 		? ('0' + (x)) \
 		: ((x) < 36U) \
-			? ('A' + (x)) \
+			? ('A' + (x) - 10) \
 			: ((x) < 62U) \
-				? ('a' + (x)) \
+				? ('a' + (x) - 36) \
 				: '?')
 /* HEX_DIGIT(x) returns the ascii code of the digit x in hexadecimal
  * (0 <= x < 16).
@@ -93,7 +93,7 @@ void skey_randinit(void)
 	assert(buf != NULL);
 
 #ifdef O_NOCTTY
-	flags |= O_CTTY;
+	flags |= O_NOCTTY;
 #endif
 #ifdef O_NOFOLLOW
 	flags |= O_NOFOLLOW;
@@ -123,8 +123,8 @@ void skey_randinit(void)
 	 * And we need to convert it to a string representing that number */
 	for (i = 0; i < bufsize; ++i) {
 		unsigned char c = buf[i];
-		number[2 * i    ] = HEX_DIGIT((c & 0x10) >> 4);
-		number[2 * i + 1] = HEX_DIGIT(c & 0x01);
+		number[2 * i    ] = HEX_DIGIT((c & 0x00f0) >> 4);
+		number[2 * i + 1] = HEX_DIGIT(c & 0x000f);
 	}
 	free(buf);
 	number[2 * i] = '\0';
@@ -134,7 +134,7 @@ void skey_randinit(void)
 	}
 
 	/* FIXME: remove debug printf */
-	gmp_printf("number = <%s>\nseed = %Zd\n", number, seed);
+	gmp_printf("number = <%s>\nseed = %Zd = %#Zx\n", number, seed, seed);
 
 	/* Choose one: */
 	/* gmp_randinit_default(randstate); */
