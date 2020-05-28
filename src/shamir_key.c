@@ -3,14 +3,9 @@
 #include "getrandom.h"
 
 /* Standard C includes */
-#include <assert.h>  /* for assert() */
-#include <limits.h>  /* for CHAR_BIT */
-#include <stdio.h>   /* for perror() */
-#include <stdlib.h>  /* for abort(), rand() */
-
-/* POSIX includes */
-#include <fcntl.h>   /* for open() */
-#include <unistd.h>  /* for read() */
+#include <assert.h> /* for assert() */
+#include <stdlib.h> /* for EXIT_FAILURE */
+#include <stdio.h> /* for perror() */
 
 /* Third-party includes */
 #include <gmp.h>     /* for gmp_*  */
@@ -68,24 +63,70 @@ void skey_free(shamir_key *key)
  * Memory is allocated to hold the keys, and a pointer to the allocated memory
  * is stored in the variable pointed to by keys.
  * The user should remember to free it after use */
-int skey_generate(shamir_key **keys,
+int skey_generate(shamir_key ***keys_,
 		const mpz_t secret,
 		unsigned short keys_req,
 		unsigned num_keys)
 {
+	shamir_key **keys;
+	mpz_t *coeffs, x, y, xprod;
+	size_t ncoeffs = keys_req - 1;
+	size_t c_count, k_count;
+
 	assert(keys_req >= min_keys_req);
 	assert(keys_req <= num_keys);
+
 	/* TODO: write this function */
+
+	/* Allocate one more for the terminating NULL */
+	keys = malloc((num_keys + 1) * sizeof *keys);
+	if (!keys) {
+		perror("malloc");
+		return EXIT_FAILURE;
+	}
+	keys[num_keys] = NULL;
+	coeffs = malloc(ncoeffs * sizeof *coeffs);
+	if (!coeffs) {
+		perror("malloc");
+		free(keys);
+		return EXIT_FAILURE;
+	}
+
+	/* Initialize the coefficients */
+	for (c_count = 0; c_count < ncoeffs; ++c_count) {
+		mpz_init(coeffs[c_count]);
+		mpz_urandomb(coeffs[c_count], randstate, SKEY_COEFF_BITCNT);
+	}
+
+	mpz_init(x);
+	mpz_init(y);
+	mpz_init(xprod);
+	for (k_count = 0; k_count < num_keys; ++k_count) {
+		mpz_urandomb(x, randstate, SKEY_COEFF_BITCNT);
+		mpz_set(y, secret);
+		mpz_set(xprod, x);
+		for (c_count = 0; c_count < ncoeffs; ++c_count) {
+			mpz_mul(xprod, xprod, x);
+			mpz_addmul(y, xprod, coeffs[c_count]);
+		}
+		keys[k_count] = skey_init(x, y);
+	}
+
+	for (c_count = 0; c_count < ncoeffs; c_count++)
+		mpz_clear(coeffs[c_count]);
+
+	mpz_clears(x, y, xprod, NULL);
+	*keys_ = keys;
+	return 0;
 }
 
 /* Initialize and seed the random state variable (randstate) */
 void skey_randinit(void)
 {
-	char *number = getrandom_str(128);
-	const size_t rand_bits = 64;
+	char *number = getrandom_str((size_t) SKEY_COEFF_BITCNT);
 	mpz_t seed;
 
-	if (mpz_init_set_str(seed, number, 16) == -1) {
+	if (mpz_init_set_str(seed, number, 0) == -1) {
 		/* TODO: handle error */
 	}
 
@@ -95,7 +136,7 @@ void skey_randinit(void)
 	/* Choose one: */
 	/* gmp_randinit_default(randstate); */
 	/* gmp_randinit_mt(randstate); */
-	assert(gmp_randinit_lc_2exp_size(randstate, (mp_bitcnt_t) rand_bits));
+	assert(gmp_randinit_lc_2exp_size(randstate, 128));
 
 	/* Using time() to get a random numbe is not very good practice. */
 	gmp_randseed(randstate, seed);
@@ -108,4 +149,9 @@ void skey_randinit(void)
 void skey_randfree(void)
 {
 	gmp_randclear(randstate);
+}
+
+void skey_print(const shamir_key *key)
+{
+	gmp_printf("ShamirKey[x=%Zd, y=%Zd]\n", key->x, key->y);
 }
