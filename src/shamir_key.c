@@ -14,25 +14,6 @@
 /* My constants */
 #define DEV_URANDOM "/dev/urandom"
 
-/* My macros */
-/* CEIL_DIV(a, b) = ceil(a / b) */
-#define CEIL_DIV(a, b) (((((a) / (b)) * (b)) == (a)) \
-		? ((a) / (b)) : (((a) / (b)) + 1))
-/* BASE62_DIGIT(x) returns the ascii code of the digit x in base 62
- * (0 <= x < 62).
- * Example: BASE62_DIGIT(12) => 'C' */
-#define BASE62_DIGIT(x) (\
-	((x) < 10U) \
-		? ('0' + (x)) \
-		: ((x) < 36U) \
-			? ('A' + (x) - 10) \
-			: ((x) < 62U) \
-				? ('a' + (x) - 36) \
-				: '?')
-/* HEX_DIGIT(x) returns the ascii code of the digit x in hexadecimal
- * (0 <= x < 16).
- * Example: HEX_DIGIT(12) => 'C' */
-#define HEX_DIGIT(x) (((x) < 16U) ? BASE62_DIGIT(x) : '?')
 
 /* Minimum value for the keys_req paramater of skey_generate */
 static const short unsigned min_keys_req = 2;
@@ -57,6 +38,10 @@ void skey_free(shamir_key *key)
 	free(key);
 	/* TODO: write this function */
 }
+
+
+static void calculate_key(const mpz_t x, mpz_t y, mpz_t prod,
+		const mpz_t a, mpz_t *c, size_t n);
 
 /* Generate num_keys keys to give out to participants.
  * At least keys_req keys are needed to decrypt the secret.
@@ -98,17 +83,14 @@ int skey_generate(shamir_key ***keys_,
 		mpz_urandomb(coeffs[c_count], randstate, SKEY_COEFF_BITCNT);
 	}
 
-	mpz_init(x);
-	mpz_init(y);
-	mpz_init(xprod);
+	mpz_inits(x, y, xprod, NULL);
+
 	for (k_count = 0; k_count < num_keys; ++k_count) {
 		mpz_urandomb(x, randstate, SKEY_COEFF_BITCNT);
-		mpz_set(y, secret);
-		mpz_set(xprod, x);
-		for (c_count = 0; c_count < ncoeffs; ++c_count) {
-			mpz_mul(xprod, xprod, x);
-			mpz_addmul(y, xprod, coeffs[c_count]);
-		}
+
+		/* Calculate y */
+		calculate_key(x, y, xprod, secret, coeffs, ncoeffs);
+
 		keys[k_count] = skey_init(x, y);
 	}
 
@@ -118,6 +100,33 @@ int skey_generate(shamir_key ***keys_,
 	mpz_clears(x, y, xprod, NULL);
 	*keys_ = keys;
 	return 0;
+}
+
+static void calculate_key(const mpz_t x, mpz_t y, mpz_t prod,
+	const mpz_t a, mpz_t *c, size_t n)
+{
+	size_t i;
+
+	/*            n
+	 *           ____
+	 *           \           i
+	 * y  = a +   >   c  *  x
+	 *           /___  i
+	 *           i = 0
+	 */
+
+	/* Initialize the variable that will hold the product x * x * ... * x to x */
+	mpz_set(prod, x);
+
+	/* Initialze y to a */
+	mpz_set(y, a);
+
+	for (i = 0; i < n; ++i) {
+		/* y += c[i] * prod */
+		mpz_addmul(y, c[i], prod);
+		/* Update the prouct */
+		mpz_mul(prod, prod, x);
+	}
 }
 
 /* Initialize and seed the random state variable (randstate) */
@@ -131,7 +140,7 @@ void skey_randinit(void)
 	}
 
 	/* FIXME: remove debug printf */
-	gmp_printf("number = <%s>\nseed = %Zd = %#Zx\n", number, seed, seed);
+	/* gmp_printf("number = <%s>\nseed = %Zd = %#Zx\n", number, seed, seed); */
 
 	/* Choose one: */
 	/* gmp_randinit_default(randstate); */

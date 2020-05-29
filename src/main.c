@@ -1,4 +1,5 @@
 #include "shamir_key.h"
+#include "shamir.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -14,11 +15,12 @@ static size_t num_keys = 5;
 
 int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
 {
+	char *secret_str;
 	size_t i;
 
 	init();
 
-	mpz_init_set_str(secret, "112233445566778899", 10);
+	mpz_init_set_str(secret, "0x112233445566778899AABBCCDDEEFF", 0);
 
 	if (skey_generate(&keys, secret, 2, num_keys) != 0) {
 		clear();
@@ -29,6 +31,21 @@ int main(__attribute__((unused)) int argc, __attribute__((unused)) char *argv[])
 	for (i = 0; i < num_keys; ++i) {
 		printf("Key %zu: ", i);
 		skey_print(keys[i]);
+	}
+
+	secret_str = shamir2_calculate_secret_str(keys);
+	if (!secret_str) {
+		fputs("shamir2_calculate_secret_str returned NULL\n", stderr);
+	} else {
+		printf("Secret 1 = %s\n", secret_str);
+		free(secret_str);
+	}
+	secret_str = shamir2_calculate_secret_str2(keys + 2);
+	if (!secret_str) {
+		fputs("shamir2_calculate_secret_str returned NULL\n", stderr);
+	} else {
+		printf("Secret 2 = %s\n", secret_str);
+		free(secret_str);
 	}
 
 	clear();
