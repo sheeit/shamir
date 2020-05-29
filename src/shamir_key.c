@@ -5,19 +5,16 @@
 /* Standard C includes */
 #include <assert.h> /* for assert() */
 #include <stdlib.h> /* for EXIT_FAILURE */
-#include <stdio.h> /* for perror() */
+#include <stdio.h>  /* for perror() */
 
 /* Third-party includes */
-#include <gmp.h>     /* for gmp_*  */
-
-
-/* My constants */
-#define DEV_URANDOM "/dev/urandom"
+#include <gmp.h>    /* for gmp_*  */
 
 
 /* Minimum value for the keys_req paramater of skey_generate */
 static const short unsigned min_keys_req = 2;
 
+/* Random state variable for GMP */
 static gmp_randstate_t randstate;
 
 
@@ -36,7 +33,6 @@ void skey_free(shamir_key *key)
 {
 	mpz_clears(key->x, key->y, NULL);
 	free(key);
-	/* TODO: write this function */
 }
 
 
@@ -60,8 +56,6 @@ int skey_generate(shamir_key ***keys_,
 
 	assert(keys_req >= min_keys_req);
 	assert(keys_req <= num_keys);
-
-	/* TODO: write this function */
 
 	/* Allocate one more for the terminating NULL */
 	keys = malloc((num_keys + 1) * sizeof *keys);
@@ -96,6 +90,7 @@ int skey_generate(shamir_key ***keys_,
 
 	for (c_count = 0; c_count < ncoeffs; c_count++)
 		mpz_clear(coeffs[c_count]);
+	free(coeffs);
 
 	mpz_clears(x, y, xprod, NULL);
 	*keys_ = keys;
@@ -136,11 +131,9 @@ void skey_randinit(void)
 	mpz_t seed;
 
 	if (mpz_init_set_str(seed, number, 0) == -1) {
-		/* TODO: handle error */
+		fputs("skey_randinit: mpz_init_set_str failed.\n", stderr);
+		abort();
 	}
-
-	/* FIXME: remove debug printf */
-	/* gmp_printf("number = <%s>\nseed = %Zd = %#Zx\n", number, seed, seed); */
 
 	/* Choose one: */
 	/* gmp_randinit_default(randstate); */

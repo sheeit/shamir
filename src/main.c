@@ -60,6 +60,7 @@ void init(void)
 }
 void clear(void)
 {
+	void *const k = keys;
 	/* Free the momory held by the random state variable */
 	skey_randfree();
 	mpz_clear(secret);
@@ -67,4 +68,5 @@ void clear(void)
 		return;
 	while (*keys)
 		skey_free(*keys++);
+	free(k);
 }
