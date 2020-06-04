@@ -1,11 +1,11 @@
 #include "getrandom.h"
 
 #include <assert.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include <stdbool.h>
-#include <string.h>
 #include <stdio.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 
@@ -35,13 +35,6 @@
 static char *str;
 static char *buf;
 
-// #define rand() myrand()
-// #define srand(s)
-
-int myrand(void) {
-	static int r = 0;
-	return r++;
-}
 
 char *getrandom_str(size_t size)
 {

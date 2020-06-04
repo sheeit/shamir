@@ -4,7 +4,6 @@
 #include "shamir_key.h"
 
 
-// int shamir_calculate_secret(const shamir_key *const *keys);
 char *shamir2_calculate_secret_str(shamir_key **const keys);
 char *shamir2_calculate_secret_str2(shamir_key **const keys);
 

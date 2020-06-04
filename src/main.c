@@ -220,8 +220,17 @@ void __attribute__((noreturn)) usage_exit(
 	fprintf(code == EXIT_SUCCESS ? stdout : stderr,
 		"%s%s%s"
 
-		"USAGE: %s <OPERATION> <INPUT TYPE> [--] <ARGUMENT>\n"
+		"USAGE: %s <OPERATION> <INPUT TYPE> [--] <ARGUMENT>\n",
 
+		error ? "Error: " : "",
+		error ? error : "",
+		error ? ".\n\n" : "",
+		progname);
+
+	/* Broken up into multiple calls because ISO C90 compilers are only
+	 * required to support 509 characters. (-Woverlength-strings) */
+
+	fputs(
 		"\nOPERATION:\n"
 
 		"\t-g KEYS_REQ,N_KEYS:\n"
@@ -232,26 +241,28 @@ void __attribute__((noreturn)) usage_exit(
 		"\t\tUse the N_KEYS keys specified in the ARGUMENTs to decrypt the secret.\n"
 
 		"\t-h:\n"
-		"\t\tShow this help.\n"
+		"\t\tShow this help.\n",
 
+		stderr);
+
+	fputs(
 		"\nINPUT TYPE:\n"
 
 		"\t-f:\n"
 		"\t\tRead input from the filename(s) specified in ARGUMENT\n"
 
 		"\t-s:\n"
-		"\t\tGet input from ARGUMENT as a string.\n"
+		"\t\tGet input from ARGUMENT as a string.\n",
 
+		stderr);
+
+	fputs(
 		"\nThe characters -- may be used to terminate option parsing, and anything after \n"
 		"is an ARGUMENT.\n"
 
 		"\nARGUMENTs depend on the other options used. See above.\n",
 
-		error ? "Error: " : "",
-		error ? error : "",
-		error ? ".\n\n" : "",
-
-		progname);
+		stderr);
 
 	exit(code);
 }
