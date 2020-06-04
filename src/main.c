@@ -10,7 +10,12 @@
 
 static mpz_t secret;
 static shamir_key **keys;
-static size_t num_keys = 5;
+
+void (*(op_functions[]))(const struct arg *) = {
+	NULL,
+	generate_func,
+	decrypt_func
+};
 
 int main(int argc, char *argv[])
 {
@@ -22,39 +27,8 @@ int main(int argc, char *argv[])
 
 	parse_arguments(argc, argv, &arg);
 
-	/*
-	init();
-
-	mpz_init_set_str(secret, "0x112233445566778899AABBCCDDEEFF", 0);
-
-	if (skey_generate(&keys, secret, 2, num_keys) != 0) {
-		clear();
-		fputs("skey_generate failed.", stderr);
-		return EXIT_FAILURE;
-	}
-
-	for (i = 0; i < num_keys; ++i) {
-		printf("Key %zu: ", i);
-		skey_print(keys[i]);
-	}
-
-	secret_str = shamir2_calculate_secret_str(keys);
-	if (!secret_str) {
-		fputs("shamir2_calculate_secret_str returned NULL\n", stderr);
-	} else {
-		printf("Secret 1 = %s\n", secret_str);
-		free(secret_str);
-	}
-	secret_str = shamir2_calculate_secret_str2(keys + 2);
-	if (!secret_str) {
-		fputs("shamir2_calculate_secret_str returned NULL\n", stderr);
-	} else {
-		printf("Secret 2 = %s\n", secret_str);
-		free(secret_str);
-	}
-
-	clear();
-	*/
+	/* Call the function based on the type of operation */
+	op_functions[arg.operation.operation](&arg);
 
 	return EXIT_SUCCESS;
 }
@@ -179,6 +153,12 @@ void parse_arguments(int argc, char *argv[], struct arg *arg)
 		}
 	}
 
+	if (arg->operation.operation == UNSPECIFIED_OP)
+		usage_exit(argv[0], EXIT_FAILURE, "You must specify an operation (-g or -d)");
+
+	if (arg->argument.type == UNSPECIFIED_ARG)
+		usage_exit(argv[0], EXIT_FAILURE, "You must specify an input type (-f or -s)");
+
 	switch (arg->operation.operation) {
 		case GENERATE:
 			if (optind == argc)
@@ -191,17 +171,16 @@ void parse_arguments(int argc, char *argv[], struct arg *arg)
 		case DECRYPT:
 			if (optind == argc)
 				usage_exit(argv[0], EXIT_FAILURE, "-d needs arguments (the keys)");
-			if (argc - optind != arg->operation.arg.n) {
+			if ((unsigned) (argc - optind) != arg->operation.arg.n) {
 				fprintf(stderr, "%s: -d: argument number mismatch. Expected %u, got %d.\n\n",
 					argv[0], arg->operation.arg.n, argc - optind);
 				usage_exit(argv[0], EXIT_FAILURE, NULL);
 			}
-			arg->argument.value.keys = &argv[optind];
+			arg->argument.value.keys = (const char **) argv + optind;
 			break;
 
-		case UNSPECIFIED_OP:
+		case UNSPECIFIED_OP: /* Can't happen */
 		default:
-			usage_exit(argv[0], EXIT_FAILURE, "You must specify an operation (-g or -d)");
 			break;
 	}
 
@@ -218,10 +197,8 @@ void parse_arguments(int argc, char *argv[], struct arg *arg)
 		fprintf(stderr, "N_KEYS = %u\n", arg->operation.arg.n);
 	}
 
-	fprintf(stderr, "Input type: %s\n",
-		arg->argument.type == FILENAME ? "FILENAME"
-			: arg->argument.type == STRING ? "STRING"
-			: "UNSPECIFIED_ARG (error)");
+	fprintf(stderr, "Input type: %s.\n",
+		arg->argument.type == FILENAME ? "FILENAME" : "STRING");
 
 	fputs("Argument(s)\n", stderr);
 	if (arg->operation.operation == GENERATE) {
@@ -295,4 +272,140 @@ void clear(void)
 	while (*keys)
 		skey_free(*keys++);
 	free(k);
+}
+
+void generate_func(const struct arg *arg)
+{
+	int ret;
+	const shamir_key **k;
+
+	if (arg->operation.operation != GENERATE)
+		return;
+
+	switch (arg->argument.type) {
+
+	char *secret_str; /* Perfectly legal, according the Standard, */
+	FILE *f;          /* so long as I don't try to initialize it. */
+
+	case FILENAME:
+
+		/* TODO: accept the filename "-" to mean standard input */
+
+		f = fopen(arg->argument.value.secret, "rb");
+		if (!f) {
+			fprintf(stderr, "Failed to open file %s.\n",
+				arg->argument.value.secret);
+			exit(EXIT_FAILURE);
+		}
+		secret_str = hex_encode_file(f);
+		fclose(f);
+		if (fclose(f) == EOF) {
+			free(secret_str);
+			fputs("flcose() returned EOF.\n", stderr);
+			exit(EXIT_FAILURE);
+		}
+		if (!secret_str) {
+			fputs("hex_encode_file() returned NULL.\n", stderr);
+			exit(EXIT_FAILURE);
+		}
+
+		if (mpz_init_set_str(secret, secret_str, 16) == -1) {
+			fputs("mpz_init_set_str() returned -1.\n", stderr);
+			fprintf(stderr, "secret_str = %s.\n", secret_str);
+			free(secret_str);
+			exit(EXIT_FAILURE);
+		}
+
+		free(secret_str);
+		break;
+
+	case STRING:
+		ret = mpz_init_set_str(secret, arg->argument.value.secret, 0);
+		if (ret == -1) {
+			fputs("mpz_init_set_str() returned -1.\n", stderr);
+			fprintf(stderr, "arg->argument.value.secret = %s.\n",
+				arg->argument.value.secret);
+			exit(EXIT_FAILURE);
+		}
+
+		break;
+
+	default: /* Can't happen */
+		exit(EXIT_FAILURE);
+	}
+
+	init();
+
+	ret = skey_generate(
+		&keys,
+		secret,
+		arg->operation.arg.genkeys.keys_req,
+		arg->operation.arg.genkeys.n_keys);
+
+	if (ret != 0) {
+		clear();
+		fputs("skey_generate failed.", stderr);
+		exit(EXIT_FAILURE);
+	}
+
+	/* Print the generated keys */
+	for (k = (const shamir_key **) keys; *k; k++)
+		skey_print(*k);
+
+
+	/* Remember to free stuff */
+	clear();
+
+}
+void decrypt_func(const struct arg *arg)
+{
+	if (arg->operation.operation != DECRYPT)
+		return;
+
+	/* TODO: write me! */
+}
+
+/* Do a hexdump of f */
+char *hex_encode_file(FILE *f)
+{
+	static const char *hex_chars = "0123456789ABCDEF";
+	char buf[BUFSIZ];
+	char *hexdump = NULL;
+	size_t size = 0; /* The total size of hexdump */
+	size_t r;        /* The number of bytes read into the buffer */
+
+	while ((r = fread(buf, 1, sizeof buf, f)) > 0) {
+		/* If r < sizeof buf then this is the last iteration,
+		 * so allocate one extra byte to null-terminate the output
+		 * string */
+		const size_t new_size = size + 2 * r + (r < sizeof buf);
+		char *hd = realloc(hexdump, new_size);
+		size_t i;
+
+		if (!hd) {
+			/* No need to check if hexdump is NULL.
+			 * ISO/IEC 9899:TC2 7.20.3.2-2 says so. */
+			free(hexdump);
+			return NULL;
+		}
+		hexdump = hd;
+		hd = hexdump + size;
+		size = new_size;
+
+		for (i = 0; i < r; ++i) {
+			*hd++ = hex_chars[(buf[i] & 0xf0) >> 4];
+			*hd++ = hex_chars[buf[i] & 0x0f];
+		}
+	}
+
+	/* Check for errors */
+	if (ferror(f)) {
+		free(hexdump); /* Ditto */
+		return NULL;
+	}
+
+	if (hexdump)
+		hexdump[size - 1] = '\0';
+
+	return hexdump;
 }

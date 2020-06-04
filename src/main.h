@@ -1,6 +1,8 @@
 #ifndef E83E48D9_697C_4182_9D23_A3C90333E250
 #define E83E48D9_697C_4182_9D23_A3C90333E250
 
+#include <stdio.h> /* FILE */
+
 enum operationtype {
 	UNSPECIFIED_OP,
 	GENERATE,
@@ -21,6 +23,8 @@ enum argtype {
 	FILENAME,
 	STRING
 };
+/* TODO: STRING argtype should take an argument to specify wheher we should
+ * pass the string as-is to mpz_init_set_str() or do a hexdump on it first. */
 struct argument {
 	enum argtype type; /* to tell us whether we're dealing with filenames
 				or just plain strings */
@@ -42,6 +46,13 @@ void __attribute__((noreturn)) usage_exit(
 
 void init(void);
 void clear(void);
+
+void generate_func(const struct arg *arg);
+void decrypt_func(const struct arg *arg);
+
+char *hex_encode_file(FILE *f);
+
+extern void (*(op_functions[]))(const struct arg *);
 
 
 #endif /* E83E48D9_697C_4182_9D23_A3C90333E250 */
