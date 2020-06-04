@@ -1,2 +1,5 @@
 bin_PROGRAMS = shamir
-shamir_SOURCES = main.c shamir_key.c getrandom.c shamir.c
+shamir_SOURCES = main.c main.h \
+	shamir.c shamir.h \
+	shamir_key.c shamir_key.h \
+	getrandom.c getrandom.h
