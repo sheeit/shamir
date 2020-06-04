@@ -155,5 +155,12 @@ void skey_randfree(void)
 
 void skey_print(const shamir_key *key)
 {
-	gmp_printf("ShamirKey[x=%Zd, y=%Zd]\n", key->x, key->y);
+	const int base = 62;
+	char *const x = mpz_get_str(NULL, base, key->x);
+	char *const y = mpz_get_str(NULL, base, key->y);
+
+	printf("%s,%s\n", x, y);
+
+	free(x);
+	free(y);
 }
