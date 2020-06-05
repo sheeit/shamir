@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h> /* strncmp */
 #include <gmp.h>
 #include <unistd.h> /* getopt */
 
@@ -202,7 +203,11 @@ void parse_arguments(int argc, char *argv[], struct arg *arg)
 
 	fputs("Argument(s)\n", stderr);
 	if (arg->operation.operation == GENERATE) {
-		fprintf(stderr, "Argument (secret): <%s>.\n", arg->argument.value.secret);
+		fprintf(stderr, "Argument (secret): <%s>.\n",
+			arg->argument.type == FILENAME
+			&& strncmp(arg->argument.value.secret, "-", 2) == 0
+				? "(STANDARD INPUT)"
+				: arg->argument.value.secret);
 	} else { /* DECRYPT */
 		size_t i;
 		for (i = 0; i < arg->operation.arg.n; ++i)
@@ -210,6 +215,8 @@ void parse_arguments(int argc, char *argv[], struct arg *arg)
 				(long unsigned) i,
 				arg->argument.value.keys[i]);
 	}
+	/* Separate argument parsing output from actual program output */
+	fputc('\n', stderr);
 }
 
 void __attribute__((noreturn)) usage_exit(
@@ -250,6 +257,7 @@ void __attribute__((noreturn)) usage_exit(
 
 		"\t-f:\n"
 		"\t\tRead input from the filename(s) specified in ARGUMENT\n"
+		"\t\tYou can specify the special argument \"-\" to mean standard input.\n"
 
 		"\t-s:\n"
 		"\t\tGet input from ARGUMENT as a string.\n",
@@ -300,21 +308,28 @@ void generate_func(const struct arg *arg)
 
 	case FILENAME:
 
-		/* TODO: accept the filename "-" to mean standard input */
+		/* Accept the filename "-" to mean standard input */
+		if (strncmp(arg->argument.value.secret, "-", 2) == 0) {
+			f = stdin;
+		} else {
+			f = fopen(arg->argument.value.secret, "rb");
+			if (!f) {
+				fprintf(stderr, "Failed to open file %s.\n",
+					arg->argument.value.secret);
+				exit(EXIT_FAILURE);
+			}
+		}
 
-		f = fopen(arg->argument.value.secret, "rb");
-		if (!f) {
-			fprintf(stderr, "Failed to open file %s.\n",
-				arg->argument.value.secret);
-			exit(EXIT_FAILURE);
-		}
 		secret_str = hex_encode_file(f);
-		fclose(f);
-		if (fclose(f) == EOF) {
-			free(secret_str);
-			fputs("flcose() returned EOF.\n", stderr);
-			exit(EXIT_FAILURE);
+
+		if (f != stdin) {
+			if (fclose(f) == EOF) {
+				free(secret_str);
+				fputs("flcose() returned EOF.\n", stderr);
+				exit(EXIT_FAILURE);
+			}
 		}
+
 		if (!secret_str) {
 			fputs("hex_encode_file() returned NULL.\n", stderr);
 			exit(EXIT_FAILURE);
